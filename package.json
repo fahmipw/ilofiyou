@@ -1,0 +1,13 @@
+{
+  "name": "lofi-chill-mp3",
+  "version": "2.0.0",
+  "description": "Lofi Chill v2 - player MP3 lokal dengan server Node.js",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
