@@ -14,7 +14,7 @@ body{
 }
 /* ======== VIDEO BACKGROUND ======== */
 #bgwrap{position:fixed;inset:0;z-index:0;overflow:hidden;background:#0e0c16}
-.bgvid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .55s ease}
+.bgvid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 1.1s ease}
 .bgvid.on{opacity:1}
 
 /* ======== VIDEO BG / OVERLAYS ======== */
@@ -226,9 +226,9 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border:none;border-ra
 
 <!-- ================= VIDEO BACKGROUND ================= -->
 <div id="bgwrap">
-  <video id="vidSiang" class="bgvid" data-src="siang.mp4" preload="none" muted loop playsinline></video>
-  <video id="vidMalam" class="bgvid" data-src="malam.mp4" preload="none" muted loop playsinline></video>
-  <video id="vidHujan" class="bgvid" data-src="hujan.mp4" preload="none" muted loop playsinline></video>
+  <video id="vidSiang" class="bgvid" src="siang.mp4" muted loop playsinline></video>
+  <video id="vidMalam" class="bgvid" src="malam.mp4" muted loop playsinline></video>
+  <video id="vidHujan" class="bgvid" src="hujan.mp4" muted loop playsinline></video>
 </div>
 <div id="vignette"></div>
 
@@ -733,39 +733,11 @@ function setMaster(v){
   audio();
   master.gain.setTargetAtTime(v/100,AC.currentTime,0.1);
 }
-/* ================= BACKGROUND VIDEO ================= */
-const bgVideos=[
-  document.getElementById('vidSiang'),
-  document.getElementById('vidMalam'),
-  document.getElementById('vidHujan')
-];
-const pendingVideoStarts=new WeakMap();
-function playBgVideo(video){
-  if(document.hidden||!video.classList.contains('on')) return;
-  if(!video.hasAttribute('src')){
-    video.src=video.dataset.src;
-    video.load();
-  }
-  const start=()=>{
-    pendingVideoStarts.delete(video);
-    if(document.hidden||!video.classList.contains('on')) return;
-    video.play().catch(()=>{});
-  };
-  if(video.readyState>=1) start();
-  else {
-    const pending=pendingVideoStarts.get(video);
-    if(pending) video.removeEventListener('loadedmetadata',pending);
-    pendingVideoStarts.set(video,start);
-    video.addEventListener('loadedmetadata',start,{once:true});
-  }
-}
-function activateBgVideo(video){
-  video.classList.add('on');
-  playBgVideo(video);
-}
-function deactivateBgVideo(video){
-  video.classList.remove('on');
-  video.pause();
+/* ================= RAIN VIDEO (hujan.mp4) ================= */
+function syncVideoTime(video, t){
+  const apply=()=>{ try{ if(isFinite(t) && video.duration && isFinite(video.duration)){ video.currentTime = t % video.duration; } }catch(e){} try{ video.play().catch(()=>{}); }catch(e){} };
+  if(video.readyState>=1) apply();
+  else video.addEventListener('loadedmetadata', apply, {once:true});
 }
 function updateRainVisual(){
   const v=(ambState.rain&&ambState.rain.val)||0;
@@ -774,13 +746,14 @@ function updateRainVisual(){
   const vid=document.getElementById('vidHujan');
   if(!vid) return;
   if(on){
-    if(!vid.classList.contains('on')){
-      bgVideos.forEach(el=>{ if(el!==vid) deactivateBgVideo(el); });
-      activateBgVideo(vid);
-    }
+    let active=null;
+    document.querySelectorAll('#bgwrap video.bgvid.on').forEach(el=>{ if(el!==vid) active=el; });
+    if(active) syncVideoTime(vid, active.currentTime);
+    else vid.play().catch(()=>{});
+    vid.classList.add('on');
   } else {
-    deactivateBgVideo(vid);
-    setBg(bgMode);
+    vid.classList.remove('on');
+    setTimeout(()=>{ try{ if(!vid.classList.contains('on')) vid.pause(); }catch(e){} },1300);
   }
 }
 function syncAmbSlider(key,val){
@@ -870,26 +843,21 @@ window.addEventListener('keydown',e=>{
 
 /* ================= SIANG / MALAM VIDEO BACKGROUND ================= */
 let bgMode='siang';
+const BGVIDS={siang:'vidSiang',malam:'vidMalam'};
 function setBg(m){
-  if(m!=='siang'&&m!=='malam') return;
-  const incoming=document.getElementById(m==='siang'?'vidSiang':'vidMalam');
-  const outgoing=document.getElementById(m==='siang'?'vidMalam':'vidSiang');
-  const rainOn=(ambState.rain&&ambState.rain.val)>0;
-  if(rainOn){
-    bgVideos.forEach(el=>{ if(el!==document.getElementById('vidHujan')) deactivateBgVideo(el); });
-  } else if(bgMode!==m||!incoming.classList.contains('on')){
-    activateBgVideo(incoming);
-    deactivateBgVideo(outgoing);
-  }
   bgMode=m;
+  const vs=document.getElementById('vidSiang'), vn=document.getElementById('vidMalam');
+  const incoming=(m==='siang')?vs:vn, outgoing=(m==='siang')?vn:vs;
+  let active=null;
+  document.querySelectorAll('#bgwrap video.bgvid.on').forEach(el=>{ if(el!==incoming) active=el; });
+  if(active) syncVideoTime(incoming, active.currentTime);
+  else try{ incoming.play().catch(()=>{}); }catch(e){}
+  incoming.classList.add('on'); outgoing.classList.remove('on');
+  setTimeout(()=>{ try{ if(!outgoing.classList.contains('on')) outgoing.pause(); }catch(e){} },1300);
   document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.mode===m));
 }
 document.querySelectorAll('#modeSeg button').forEach(b=>b.addEventListener('click',()=>setBg(b.dataset.mode)));
 (function(){ const hh=new Date().getHours(); setBg((hh>=6&&hh<18)?'siang':'malam'); })();
-document.addEventListener('visibilitychange',()=>{
-  if(document.hidden) bgVideos.forEach(video=>video.pause());
-  else bgVideos.forEach(video=>{ if(video.classList.contains('on')) playBgVideo(video); });
-});
 document.getElementById('fsBtn').addEventListener('click',()=>{
   if(document.fullscreenElement) document.exitFullscreen();
   else if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{});
