@@ -226,9 +226,9 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border:none;border-ra
 
 <!-- ================= VIDEO BACKGROUND ================= -->
 <div id="bgwrap">
-  <video id="vidSiang" class="bgvid" data-src="siang.webm" preload="none" muted loop playsinline></video>
-  <video id="vidMalam" class="bgvid" data-src="malam.webm" preload="none" muted loop playsinline></video>
-  <video id="vidHujan" class="bgvid" data-src="hujan.webm" preload="none" muted loop playsinline></video>
+  <video id="vidSiang" class="bgvid" data-src="siang.mp4" preload="none" muted loop playsinline></video>
+  <video id="vidMalam" class="bgvid" data-src="malam.mp4" preload="none" muted loop playsinline></video>
+  <video id="vidHujan" class="bgvid" data-src="hujan.mp4" preload="none" muted loop playsinline></video>
 </div>
 <div id="vignette"></div>
 
@@ -740,9 +740,7 @@ const bgVideos=[
   document.getElementById('vidHujan')
 ];
 const pendingVideoStarts=new WeakMap();
-const videoPauseTimers=new WeakMap();
-const BG_FADE_MS=550;
-function playBgVideo(video,startAt){
+function playBgVideo(video){
   if(document.hidden||!video.classList.contains('on')) return;
   if(!video.hasAttribute('src')){
     video.src=video.dataset.src;
@@ -751,9 +749,6 @@ function playBgVideo(video,startAt){
   const start=()=>{
     pendingVideoStarts.delete(video);
     if(document.hidden||!video.classList.contains('on')) return;
-    if(Number.isFinite(startAt)&&Number.isFinite(video.duration)&&video.duration>0){
-      try{ video.currentTime=startAt%video.duration; }catch(e){}
-    }
     video.play().catch(()=>{});
   };
   if(video.readyState>=1) start();
@@ -764,17 +759,13 @@ function playBgVideo(video,startAt){
     video.addEventListener('loadedmetadata',start,{once:true});
   }
 }
-function activateBgVideo(video,startAt){
-  clearTimeout(videoPauseTimers.get(video));
+function activateBgVideo(video){
   video.classList.add('on');
-  playBgVideo(video,startAt);
+  playBgVideo(video);
 }
 function deactivateBgVideo(video){
   video.classList.remove('on');
-  clearTimeout(videoPauseTimers.get(video));
-  videoPauseTimers.set(video,setTimeout(()=>{
-    if(!video.classList.contains('on')) video.pause();
-  },BG_FADE_MS+50));
+  video.pause();
 }
 function updateRainVisual(){
   const v=(ambState.rain&&ambState.rain.val)||0;
@@ -784,11 +775,12 @@ function updateRainVisual(){
   if(!vid) return;
   if(on){
     if(!vid.classList.contains('on')){
-      const active=bgVideos.find(el=>el!==vid&&el.classList.contains('on'));
-      activateBgVideo(vid,active?active.currentTime:undefined);
+      bgVideos.forEach(el=>{ if(el!==vid) deactivateBgVideo(el); });
+      activateBgVideo(vid);
     }
   } else {
     deactivateBgVideo(vid);
+    setBg(bgMode);
   }
 }
 function syncAmbSlider(key,val){
@@ -882,10 +874,11 @@ function setBg(m){
   if(m!=='siang'&&m!=='malam') return;
   const incoming=document.getElementById(m==='siang'?'vidSiang':'vidMalam');
   const outgoing=document.getElementById(m==='siang'?'vidMalam':'vidSiang');
-  const active=bgVideos.find(el=>el!==incoming&&el!==document.getElementById('vidHujan')&&el.classList.contains('on'));
-  const startAt=active?active.currentTime:undefined;
-  if(bgMode!==m||!incoming.classList.contains('on')){
-    activateBgVideo(incoming,startAt);
+  const rainOn=(ambState.rain&&ambState.rain.val)>0;
+  if(rainOn){
+    bgVideos.forEach(el=>{ if(el!==document.getElementById('vidHujan')) deactivateBgVideo(el); });
+  } else if(bgMode!==m||!incoming.classList.contains('on')){
+    activateBgVideo(incoming);
     deactivateBgVideo(outgoing);
   }
   bgMode=m;
